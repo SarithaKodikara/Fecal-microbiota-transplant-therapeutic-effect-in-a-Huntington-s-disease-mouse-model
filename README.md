@@ -3,6 +3,7 @@
 Carolina Gubert, Jocelyn M. Choo, Chloe J. Love, Saritha Kodikara, Bethany A. Masson, Jamie J. M. Liew, Yiwen Wang, Geraldine Kong, Vinod K. Narayana, Thibault Renoir, Kim-Anh Lê Cao, Geraint B. Rogers and Anthony J.  Hannan
 
 **Abstract:**
+
 *Objective* Huntington’s disease (HD) is a fatal neurodegenerative disorder for which there are currently no effective disease-modifying treatments. Despite recent evidence of gut microbiome disruption in preclinical and clinical HD, its potential as a target for therapeutic interventions has not yet been explored.  
 
 *Design* Using the R6/1 transgenic mouse model of HD, we investigated whether fecal matter transplant (FMT) that returns the HD gut microbiome towards a wild-type (WT) profile could be therapeutic. We assessed FMT impacts on the onset and progression of disease. 
