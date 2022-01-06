@@ -1,0 +1,712 @@
+## ----global_options, include=FALSE------------------------------------------------------------------------
+library(knitr)
+# global options to show by default the code, dump the figures into /Figures etc
+knitr::opts_chunk$set(dpi = 100, 
+                      echo=TRUE, 
+                      warning=FALSE, message=FALSE, eval = TRUE,
+                      fig.show=TRUE, fig.width= 5,fig.height= 5,fig.align='center', out.width = '50%', fig.path= 'Figures/')
+library(dplyr)
+library(readxl)
+library(magrittr)
+library(ggplot2)
+library(ggpubr)
+library(car)
+library(nlme)
+library(stargazer)
+library(dotwhisker)
+library(sjPlot)
+require(xtable)
+library(TSA)
+library(jtools)
+library(emmeans)
+library(graphics)
+library(tidyr)
+library(ordinal)
+library(viridis)
+library(lmerTest)
+library(ggpubr)
+library(rstatix)
+library(patchwork)
+library(emmeans)
+library(kableExtra)
+library(MASS)
+library(tibble)
+
+
+## ---------------------------------------------------------------------------------------------------------
+# load data from the csv file first. (the csv file is from your xlsx file)
+data <- read_excel("Data/CarolGubert_FMT_male_data_July2021_final.xlsx")
+data <- as.data.frame(data)
+# extract group information
+data$genotype <- factor(data$genotype,levels = c("WT", "HD"))
+data$ATB<- factor(data$ATB,levels = c("NO", "YES"))
+data$FMT<- factor(data$FMT,levels = c("NO", "YES"))
+data$BOX <- factor(data$BOX)
+
+Treatment<-ifelse((data$ATB=="YES"&data$FMT=="YES"),"ATB_FMT", 
+                  ifelse((data$ATB=="YES"&data$FMT=="NO"),"Only ATB","No treatment"))%>% 
+                factor(levels = c("No treatment","Only ATB","ATB_FMT"))
+data.new<-add_column(data, Treatment = Treatment, .after = 5)
+
+
+## ----echo=FALSE, include=FALSE----------------------------------------------------------------------------
+colnames(data.new)
+
+
+## ---------------------------------------------------------------------------------------------------------
+data.repeated.1<-data.new[,c(1:6,8:37,61:75,91:116)]
+long_data.repeated.1<-data.repeated.1 %>% 
+  gather(v, value, BodyWeight_W6:FecalWaterContent_W20) %>% 
+  separate(v, c("col", "Time"),sep="_W") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+long_data.repeated.1$Time <-as.numeric(long_data.repeated.1$Time)
+#filter out Time 6 and 7
+long_data.repeated.1<-long_data.repeated.1%>%filter(Time!=6 &Time!=7)
+long_data.repeated.1$Time<-long_data.repeated.1$Time-7
+
+
+
+## ---------------------------------------------------------------------------------------------------------
+#subset(long_data.repeated.1, !is.na(BodyWeight)) %>%
+    #group_by(genotype, FMT, ATB) %>%
+    #tally()
+
+
+#subset(long_data.repeated.1, !is.na(BodyWeight)) %>%
+    #group_by(genotype, Treatment, Time) %>%
+    #tally()%>% summary()
+
+#Interaction between ATB & FMT not considered as all no ATB had no FMT
+BodyWeight.lmm <- lme(BodyWeight ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX), 
+                         data = subset(long_data.repeated.1, !is.na(BodyWeight)))
+
+WeightGain.lmm <- lme(WeightGain ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX), 
+                         data = subset(long_data.repeated.1, !is.na(WeightGain)))
+
+Rotarod.lmm <- lme(Rotarod ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX),
+                         data = subset(long_data.repeated.1, !is.na(Rotarod)))
+
+FecalOutput.lmm <- lme(FecalOutput  ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX),
+                         data = subset(long_data.repeated.1, !is.na(FecalOutput)))
+
+FecalWaterContent.lmm <- lme(FecalWaterContent  ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX), 
+                         data = subset(long_data.repeated.1, !is.na(FecalWaterContent)))
+
+stargazer(BodyWeight.lmm ,WeightGain.lmm,Rotarod.lmm,
+          FecalWaterContent.lmm,FecalOutput.lmm, type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), notes.append = FALSE)
+
+
+
+## ---------------------------------------------------------------------------------------------------------
+FoodIntake.data<-data.new[,c(1:6,38:49)]
+long_FoodIntake.data<-FoodIntake.data %>% 
+  gather(v, value, FoodIntake_W9:FoodIntake_W20) %>% 
+  separate(v, c("col", "Time"),sep="_W") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+long_FoodIntake.data$Time <-as.numeric(long_FoodIntake.data$Time)
+long_FoodIntake.data$Time<-long_FoodIntake.data$Time-8
+
+WaterIntake.data<-data.new[,c(1:6,50:60)]
+long_WaterIntake.data<-WaterIntake.data %>% 
+  gather(v, value, WaterIntake_W10:WaterIntake_W20) %>% 
+  separate(v, c("col", "Time"),sep="_W") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+long_WaterIntake.data$Time <-as.numeric(long_WaterIntake.data$Time)
+long_WaterIntake.data$Time<-long_WaterIntake.data$Time-9
+
+
+## ---------------------------------------------------------------------------------------------------------
+FoodIntake.lmm <- lme(FoodIntake  ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX),
+                      data = subset(long_FoodIntake.data, !is.na(FoodIntake)))
+WaterIntake.lmm <- lme(WaterIntake  ~ genotype+Treatment+Time+
+                         genotype:Treatment+genotype:Time+
+                         Treatment:Time,random =(~1|BOX),
+                       data = subset(long_WaterIntake.data, !is.na(WaterIntake)))
+stargazer(FoodIntake.lmm,WaterIntake.lmm, type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), notes.append = FALSE)
+
+
+## ---------------------------------------------------------------------------------------------------------
+CFC.data<-data.new[,c(1:6,165:171)]
+long_CFC.data<-CFC.data %>% 
+  gather(v, value, CONDT_1:CONDT_6) %>% 
+  separate(v, c("col", "Time"),sep="_") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+long_CFC.data$Time <-as.numeric(long_CFC.data$Time)
+
+CFC.ex.data<-data.new[,c(1:6,172:181)]
+long_CFC.ex.data<-CFC.ex.data %>% 
+  gather(v, value, `EXT_1-5`:`EXT_41-45`) %>% 
+  separate(v, c("col", "Time"),sep="_") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+long_CFC.ex.data$Time <- factor(long_CFC.ex.data$Time,ordered = TRUE,
+                                     levels = c('1-5', '6-10', 
+                                                '11-15', '16-20',
+                                                '21-25', '26-30',
+                                                '31-35', '36-40',
+                                                '41-45'))
+long_CFC.ex.data$Time = as.numeric(long_CFC.ex.data$Time)
+
+
+## ---------------------------------------------------------------------------------------------------------
+CFC_Conditioning.lmm <- lme(CONDT ~ genotype+Treatment+Time+CONDT_Base+
+                         genotype:Treatment+genotype:Time+genotype:CONDT_Base+
+                         Treatment:Time+Treatment:CONDT_Base+Time:CONDT_Base,
+                         random=(~1|BOX),data =subset(long_CFC.data,!is.na(CONDT )))
+
+CFC_Extinction.lmm <- lme(EXT ~ genotype+Treatment+Time+EXT_Base+
+                         genotype:Treatment+genotype:Time+genotype:EXT_Base+
+                         Treatment:Time+Treatment:EXT_Base+Time:EXT_Base,
+                         random=(~1|BOX),data =subset(long_CFC.ex.data,!is.na(EXT )))
+
+stargazer(CFC_Conditioning.lmm,CFC_Extinction.lmm, type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE)
+
+
+## ---------------------------------------------------------------------------------------------------------
+Ymaze.data<-data.new[,c(1:6,120:121)]
+long_Ymaze.data<-Ymaze.data %>% 
+  gather(v, value, Ymaze_novelArm:Ymaze_familiarArm) %>% 
+  separate(v, c("col", "Arm"),sep="_") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+
+long_Ymaze.data$Arm = factor(long_Ymaze.data$Arm,
+                             levels = c("novelArm","familiarArm"),
+                             labels = c("Novel","Familiar"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+Ymaze.lmm <- lme(Ymaze ~ genotype+Treatment+Arm+
+                         genotype:Treatment+genotype:Arm+
+                         Treatment:Arm,random=list(BOX=~1, ID=~1),
+                           data =subset(long_Ymaze.data,!is.na(Ymaze)))
+
+stargazer(Ymaze.lmm, type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE)
+
+
+## ---------------------------------------------------------------------------------------------------------
+dep_vars <-c("Ymaze_index","Ymaze_Dist_trial1","NOR_RI_5min",
+             "BrainWeight","Digigait_PropelBrakeRatio_W14",
+             "GutTransitTime_W14","GutTransitTime_W20","FITC_w14",
+             "FITC_w20","CecumWeight_w14","CecumWeight_w20",
+             "CecumLength_w14","CecumLength_w20",
+             "ColonLength_w14","ColonLength_w20")
+
+p_val<-lapply(dep_vars, function(r) {
+  m <- lme(formula(paste(r, "genotype+Treatment+genotype:Treatment", sep = "~")),
+           random=(~1|BOX),data = subset(data.new,!is.na(eval(parse(text = r)))))
+  assign(paste0(r,".lmm_"),m, envir = .GlobalEnv)
+  summary(m)$tTable[,5]})
+
+
+
+stargazer(Ymaze_index.lmm_,Ymaze_Dist_trial1.lmm_,
+          NOR_RI_5min.lmm_,BrainWeight.lmm_,Digigait_PropelBrakeRatio_W14.lmm_,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("YmazeIndex","YmazeDist","NOR",
+                          "BrainWeight","PropelBrakeRatio"),
+          align=TRUE)
+
+stargazer(GutTransitTime_W14.lmm_,
+          GutTransitTime_W20.lmm_,FITC_w14.lmm_,FITC_w20.lmm_,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("GutTransitTime-W14",
+                          "GutTransitTime-W20","FITC-W14","FITC-W20"),
+          align=TRUE)
+
+
+stargazer(CecumWeight_w14.lmm_,CecumWeight_w20.lmm_,CecumLength_w14.lmm_,
+          CecumLength_w20.lmm_,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("CecumWeight-W14", "CecumWeight-W20",
+                          "CecumLength-W14","CecumLength-W20"),
+          align=TRUE)
+stargazer(ColonLength_w14.lmm_,ColonLength_w20.lmm_,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("ColonLength-W14","ColonLength-W20"),
+          align=TRUE)
+
+
+## ---------------------------------------------------------------------------------------------------------
+#subset(data.new, !is.na(Acetate_w14)) %>%
+    #group_by(genotype, Treatment) %>%
+    #tally()
+dep_vars <-c("Acetate_w14","Propionate_w14",
+             "Isobutyrate_w14","Methylbutyrate_w14")
+
+p_val<-lapply(dep_vars, function(r) {
+  m <- lme(formula(paste(r, "genotype+Treatment", sep = "~")),
+           random=(~1|BOX),data = subset(data.new,!is.na(eval(parse(text = r)))))
+  assign(paste0(r,".lmm"),m, envir = .GlobalEnv)
+  summary(m)$tTable[,5]})
+
+
+
+stargazer(Acetate_w14.lmm,Propionate_w14.lmm,
+          Isobutyrate_w14.lmm, Methylbutyrate_w14.lmm,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("Acetate-14","Propionate-14",
+                          "Isobutyrate-14","Methylbutyrate-14"),
+          align=TRUE)
+
+
+
+## ---------------------------------------------------------------------------------------------------------
+dep_vars <-c("Acetate_w20","Propionate_w20","Isobutyrate_w20",
+             "Methylbutyrate_w20")
+
+p_val<-lapply(dep_vars, function(r) {
+  m <- lme(formula(paste(r, "genotype+Treatment+genotype:Treatment", sep = "~")),
+           random=(~1|BOX),data = subset(data.new,!is.na(eval(parse(text = r)))))
+  assign(paste0(r,".lmm"),m, envir = .GlobalEnv)
+  summary(m)$tTable[,5]})
+
+
+stargazer(Acetate_w20.lmm,Propionate_w20.lmm,
+          Isobutyrate_w20.lmm,Methylbutyrate_w20.lmm,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("Acetate-20","Propionate-20",
+                          "Isobutyrate-20","Methylbutyrate-20"),
+          align=TRUE)
+
+
+## ---------------------------------------------------------------------------------------------------------
+#subset(data, !is.na(IFNg_w14)) %>%
+  #  group_by(genotype, FMT, ATB) %>%
+ #   tally()
+
+dep_vars <-c("IL17A_w14", "IL17E_w14","IL21_w14","IL7R_w14" )
+
+p_val<-lapply(dep_vars, function(r) {
+  m <- lme(formula(paste(r, "genotype+Treatment", sep = "~")),
+           random=(~1|BOX),data = subset(data.new,!is.na(eval(parse(text = r)))))
+  assign(paste0(r,".lmm"),m, envir = .GlobalEnv)
+  summary(m)$tTable[,5]})
+
+stargazer(IL17A_w14.lmm, IL17E_w14.lmm,IL21_w14.lmm,IL7R_w14.lmm,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c( "IL17A-14", "IL17E-14","IL21-14","IL7R-14"),
+          align=TRUE)
+
+
+
+## ---------------------------------------------------------------------------------------------------------
+dep_vars <-c("IFNg_w14","IL1b_w14","IL22_w14","IL6_w14","TNFa_w14",
+             "IFNg_w20","IL17A_w20","IL17E_w20","IL1b_w20",
+             "IL21_w20","IL22_w20","IL6_w20","TNFa_w20")
+
+p_val<-lapply(dep_vars, function(r) {
+  m <- lme(formula(paste(r, "genotype+Treatment+genotype:Treatment", sep = "~")),
+           random=(~1|BOX),data = subset(data.new,!is.na(eval(parse(text = r)))))
+  assign(paste0(r,".lmm"),m, envir = .GlobalEnv)
+  summary(m)$tTable[,5]})
+
+
+stargazer(IFNg_w14.lmm,IL1b_w14.lmm,IL22_w14.lmm,IL6_w14.lmm,TNFa_w14.lmm,
+          IFNg_w20.lmm,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("IFNg-14","IL1b-14","IL22-14","IL6-14","TNFa-14",
+                          "IFNg-20"),
+          align=TRUE)
+
+stargazer(IL17A_w20.lmm,IL17E_w20.lmm,IL1b_w20.lmm,IL21_w20.lmm,
+          IL22_w20.lmm,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("IL17A-20","IL17E-20","IL1b-20",
+             "IL21-20","IL22-20"),
+          align=TRUE)
+
+stargazer(IL6_w20.lmm,TNFa_w20.lmm,
+          type = "text",
+          digits = 4,
+          report = ('vc*p'),
+          star.char = c("+", "*", "**", "***"),
+          star.cutoffs = c(.1, .05, .01, .001),
+          digit.separator = "", 
+          notes = c("+ p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = FALSE,
+          dep.var.labels.include  = FALSE,
+          column.labels=c("IL6-20","TNFa-20"),
+          align=TRUE)
+
+
+
+## ---------------------------------------------------------------------------------------------------------
+data_clasping <- data.new[,c(1:6,78:90)] # extract the columns of data that will become Y
+long_clasping<-data_clasping %>% 
+  gather(v, value, Clasping_W8:Clasping_W20) %>% 
+  separate(v, c("col", "Time"),sep="_W") %>% 
+  arrange(ID) %>% 
+  spread(col, value)
+long_clasping$Time <-as.numeric(long_clasping$Time)-7
+long_clasping$Clasping<-factor(long_clasping$Clasping, ordered = TRUE , levels = c(0:4))
+t<-table(long_clasping$Time,long_clasping$Clasping)
+t1<-table(long_clasping$Time,long_clasping$Clasping)%>%prop.table(margin = 1)
+#subset(long_clasping, !is.na(Clasping)) %>%
+#group_by(genotype, Treatment, Time) %>%
+#tally() %>% summary()
+
+
+## ----barplot_clas_count_male, echo = FALSE, fig.cap ='Bar plot for clasping over the 12 weeks', fig.pos="H",  fig.width = 10, fig.height = 9,  out.width = "1\\textwidth"----
+ggplot(data.frame(as.matrix(t)), aes(fill=Var2, y=Freq, x=Var1)) + 
+    geom_bar( stat="identity", position = position_stack(reverse = TRUE)) +
+    scale_fill_viridis(discrete = T)+ylab("Count")+xlab("Time")+ 
+  guides(fill=guide_legend(title="Clasping Score"))
+
+
+## ----barplot_clas_per_male, echo = FALSE, fig.cap ='Bar plot for clasping over the 12 weeks', fig.pos="H",  fig.width = 10, fig.height = 9,  out.width = "1\\textwidth"----
+ggplot(data.frame(as.matrix(t1)), aes(fill=Var2, y=Freq, x=Var1)) + 
+    geom_bar( stat="identity", position = position_stack(reverse = TRUE)) +
+    scale_fill_viridis(discrete = T)+ylab("Percent")+xlab("Time")+ 
+  guides(fill=guide_legend(title="Clasping Score"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+# HD mice clasping score
+long_clasping_hd<-data_clasping %>% 
+  gather(v, value, Clasping_W8:Clasping_W20) %>% 
+  separate(v, c("col", "Time"),sep="_W") %>% 
+  arrange(ID) %>% 
+  spread(col, value)%>%filter(genotype=="HD")
+long_clasping_hd$Time <-as.numeric(long_clasping_hd$Time)-7
+long_clasping_hd$Clasping<-factor(long_clasping_hd$Clasping, ordered = TRUE , levels = c(0:4))
+t1<-table(long_clasping_hd$Time,long_clasping_hd$Clasping)%>%prop.table(margin = 1)
+
+
+
+## ----barplot_clas_per_male_hd, echo = FALSE, fig.cap ='Bar plot for clasping over the 12 weeks for HD mice', fig.pos="H",  fig.width = 10, fig.height = 9,  out.width = "1\\textwidth"----
+ggplot(data.frame(as.matrix(t1)), aes(fill=Var2, y=Freq, x=Var1)) + 
+    geom_bar( stat="identity", position = position_stack(reverse = TRUE)) +
+    scale_fill_viridis(discrete = T)+ylab("Percent")+xlab("Time")+ 
+  guides(fill=guide_legend(title="Clasping Score"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+# WT mice clasping score
+long_clasping_wt<-data_clasping %>% 
+  gather(v, value, Clasping_W8:Clasping_W20) %>% 
+  separate(v, c("col", "Time"),sep="_W") %>% 
+  arrange(ID) %>% 
+  spread(col, value)%>%filter(genotype=="WT")
+long_clasping_wt$Time <-as.numeric(long_clasping_wt$Time)-7
+long_clasping_wt$Clasping<-factor(long_clasping_wt$Clasping, ordered = TRUE , levels = c(0:4))
+t1<-table(long_clasping_wt$Time,long_clasping_wt$Clasping)%>%prop.table(margin = 1)
+
+
+
+## ----barplot_clas_per_male_wt, echo = FALSE, fig.cap ='Bar plot for clasping over the 12 weeks for WT mice', fig.pos="H",  fig.width = 10, fig.height = 9,  out.width = "1\\textwidth"----
+ggplot(data.frame(as.matrix(t1)), aes(fill=Var2, y=Freq, x=Var1)) + 
+    geom_bar( stat="identity", position = position_stack(reverse = TRUE)) +
+    scale_fill_viridis(discrete = T)+ylab("Percent")+xlab("Time")+ 
+  guides(fill=guide_legend(title="Clasping Score"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+
+Clasping.clm = clm(Clasping~genotype + Treatment + Time, 
+           data=long_clasping, Hess=TRUE)
+summary(Clasping.clm)
+
+
+
+## ---------------------------------------------------------------------------------------------------------
+
+Clasping.clmm = clmm(Clasping~genotype + Treatment + Time+(1|BOX), 
+           data=long_clasping, Hess=TRUE)
+summary(Clasping.clmm)
+
+
+## ---------------------------------------------------------------------------------------------------------
+anova( Clasping.clmm,Clasping.clm)
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(BodyWeight.lmm, pairwise ~ genotype*Treatment, 
+           at = list(Time = c(1:13)))
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype *Treatment in body weight") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(6,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(WeightGain.lmm, pairwise ~ genotype*Treatment, 
+           at = list(Time = c(1:13)))
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype * Treatment in Weight Gain") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(6,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(FecalWaterContent.lmm, pairwise ~ genotype*Treatment, 
+           at = list(Time = c(1:13)))
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype * Treatment in Fecal Water Content") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(6,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(FoodIntake.lmm, pairwise ~ genotype*Treatment,
+           at = list(Time = c(1:12)))
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype * Treatment in Food Intake") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(6,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(WaterIntake.lmm, pairwise ~ Treatment|genotype,
+           at = list(Time = c(1:11)))
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for Treatment given genotype in Water Intake") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(CFC_Extinction.lmm, pairwise ~ genotype|Treatment)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype given Treatment in CFC Extinction") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(Ymaze.lmm, pairwise ~ genotype|Treatment*Arm)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype given Treatment*Arm in Ymaze") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(8,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(BrainWeight.lmm_, pairwise ~ genotype|Treatment)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for for genotype given Treatment in Brain weight") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(Digigait_PropelBrakeRatio_W14.lmm_, pairwise ~ genotype|Treatment)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype given Treatment in Propel Brake Ratio") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(FITC_w20.lmm_, pairwise ~ genotype|Treatment)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype given Treatment in FITC") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(CecumWeight_w14.lmm_, pairwise ~ Treatment|genotype)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for Treatment given genotype in Cecum Weight") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(ColonLength_w20.lmm_, pairwise ~ genotype|Treatment)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype given Treatment in Colon length") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(Acetate_w20.lmm, pairwise ~ genotype*Treatment)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for genotype Treatment in Acetate") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(6,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+x<-emmeans(IL17E_w20.lmm, pairwise ~ Treatment|genotype)
+df<-data.frame(x$contrasts)
+that_cell<-df$p.value<0.05
+kbl(x$contrasts, longtable=T, linesep = "", booktabs = T, digits = c(4,4,4,4,4,4),
+    format = "latex",caption = "Post-hoc results for Treatment given genotype in IL17E") %>%
+  kable_styling(latex_options = c("repeat_header"))%>%
+  column_spec(7,bold = that_cell,
+              color =  ifelse(that_cell,"red","black"))%>%
+  column_spec(1,color =  ifelse(that_cell,"red","black"))
+
+
+## ---------------------------------------------------------------------------------------------------------
+sessionInfo()
+
