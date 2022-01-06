@@ -1,3 +1,5 @@
+This vignette provides all reproducible codes for our article:
+
 # Fecal-microbiota-transplant-therapeutic-effect-in-a-Huntington-s-disease-mouse-model
 
 Carolina Gubert, Jocelyn M. Choo, Chloe J. Love, Saritha Kodikara, Bethany A. Masson, Jamie J. M. Liew, Yiwen Wang, Geraldine Kong, Vinod K. Narayana, Thibault Renoir, Kim-Anh Lê Cao, Geraint B. Rogers and Anthony J.  Hannan
